@@ -1,0 +1,40 @@
+{
+  "national_policies": {
+    "model_outdoor_advertising_policy_2016": {
+      "size_rules": {
+        "max_area_sqft": 500,
+        "max_height_ft": 20,
+        "max_width_ft": 25
+      },
+      "placement_rules": ["junction", "hospital", "school"],
+      "content_restrictions": ["tobacco", "alcohol", "obscene", "vulgar"],
+      "licensing_rules": ["qr_code_required", "license_number_required"]
+    }
+  },
+  "municipal_policies": {
+    "delhi": {
+      "size_rules": {
+        "max_area_sqft": 300,
+        "max_height_ft": 15,
+        "max_width_ft": 20
+      },
+      "placement_rules": ["junction", "metro_station", "hospital"]
+    },
+    "mumbai": {
+      "size_rules": {
+        "max_area_sqft": 400,
+        "max_height_ft": 18,
+        "max_width_ft": 22
+      },
+      "placement_rules": ["junction", "school", "bridge"]
+    }
+  },
+  "violation_types": {
+    "size": "Billboard exceeds permitted dimensions.",
+    "placement": "Billboard placed in restricted location.",
+    "content": "Billboard contains prohibited or obscene content.",
+    "license": "Billboard missing valid QR code or license number."
+  }
+}
+
+
