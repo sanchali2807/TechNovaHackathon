@@ -22,9 +22,9 @@ class Settings(BaseSettings):
     policies_path: Path = Path("policies.json").absolute()
 
     # MVP detection thresholds
-    presence_threshold_low: float = 0.3
-    presence_threshold_high: float = 0.5
-    detection_conf_threshold: float = 0.3
+    presence_threshold_low: float = 0.2
+    presence_threshold_high: float = 0.3
+    detection_conf_threshold: float = 0.625
     presence_enabled: bool = False
 
 

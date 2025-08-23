@@ -42,49 +42,68 @@ def _preprocess(img: np.ndarray) -> np.ndarray:
     return np.expand_dims(inp, 0)
 
 
-def predict_presence(path: str) -> float:
-    """Return probability [0,1] that an image contains a billboard.
-
-    If ONNX model exists, use it. Otherwise, fall back to heuristic edges-based estimator.
+def predict_presence(path: str, custom_model_path: str = None) -> dict:
+    """Return probability scores for billboard classification using ONNX model.
+    
+    Returns dict with:
+    - billboard: probability of billboard class
+    - no_billboard: probability of no billboard class
+    - accepted: boolean if image should be accepted (billboard >= 0.8)
     """
     p = Path(path)
     img = cv2.imread(str(p))
     if img is None:
-        return 0.0
+        return {
+            "billboard": 0.0,
+            "no_billboard": 1.0,
+            "accepted": False,
+            "message": "Invalid image file"
+        }
 
-    session = _load_session()
+    # Try custom model first, then default model
+    session = None
+    if custom_model_path and Path(custom_model_path).exists():
+        try:
+            session = onnxruntime.InferenceSession(custom_model_path)
+        except Exception as e:
+            print(f"Failed to load custom model {custom_model_path}: {e}")
+    
+    if session is None:
+        session = _load_session()
+    
     if session is not None:
         inp = _preprocess(img)
         outputs = session.run(None, {session.get_inputs()[0].name: inp})
-        # Assume output [N,2] softmax: [no_billboard, billboard]
         probs = outputs[0].astype(np.float32)
+        
         if probs.ndim == 2 and probs.shape[1] >= 2:
-            prob_billboard = float(probs[0][1])
+            # Two-class output: [no_billboard, billboard]
+            no_billboard_prob = float(probs[0][0])
+            billboard_prob = float(probs[0][1])
         else:
-            # If the model outputs a single sigmoid value
-            prob_billboard = float(probs.flatten()[0])
-        return max(0.0, min(1.0, prob_billboard))
+            # Single output - assume it's billboard probability
+            billboard_prob = float(probs.flatten()[0])
+            no_billboard_prob = 1.0 - billboard_prob
+        
+        # Apply threshold rule: billboard >= 0.3 to accept (lowered from 0.8)
+        accepted = billboard_prob >= 0.3
+        
+        # Debug output
+        print(f"ONNX Model Results: billboard={billboard_prob:.3f}, no_billboard={no_billboard_prob:.3f}, accepted={accepted}")
+        
+        message = "Billboard detected ✅" if accepted else "No billboard detected ❌ Please upload a billboard photo."
+        
+        return {
+            "billboard": max(0.0, min(1.0, billboard_prob)),
+            "no_billboard": max(0.0, min(1.0, no_billboard_prob)),
+            "accepted": accepted,
+            "message": message
+        }
 
-    # Heuristic fallback (same as before)
-    h, w = img.shape[:2]
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    gray = cv2.GaussianBlur(gray, (5, 5), 0)
-    edges = cv2.Canny(gray, 50, 150)
-    contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    area_img = float(w * h)
-
-    best = 0.0
-    for cnt in contours:
-        area = cv2.contourArea(cnt)
-        if area < 0.02 * area_img:
-            continue
-        x, y, bw, bh = cv2.boundingRect(cnt)
-        aspect = bw / float(bh or 1)
-        rectangularity = area / float(max(bw * bh, 1))
-        if aspect >= 2.0 and rectangularity >= 0.6:
-            area_norm = area / area_img
-            score = min(1.0, 0.5 * area_norm + 0.3 * rectangularity + 0.2 * min(1.0, (aspect - 1.5) / 6.0))
-            best = max(best, score)
-    return float(best)
-
-
+    # Heuristic fallback - return rejection for no ONNX model
+    return {
+        "billboard": 0.0,
+        "no_billboard": 1.0,
+        "accepted": False,
+        "message": "No billboard detected Please upload a billboard photo."
+    }

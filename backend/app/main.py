@@ -99,15 +99,15 @@ async def upload(
 
     analyzer = _select_analyzer()
     # Step 1: billboard presence classification (binary)
-    presence_prob = 1.0
+    presence_result = {"billboard": 1.0, "no_billboard": 0.0, "accepted": True, "message": "Processing..."}
     if settings.presence_enabled:
         try:
-            presence_prob = predict_presence(saved.local_path)
+            presence_result = predict_presence(saved.local_path)
         except Exception as exc:  # noqa: BLE001
-            presence_prob = 1.0
+            presence_result = {"billboard": 1.0, "no_billboard": 0.0, "accepted": True, "message": "Processing..."}
 
-    # Apply balanced presence thresholds
-    if MODEL_LOADED and presence_prob < 0.3:
+    # Apply threshold rule: reject if not accepted by ONNX model
+    if MODEL_LOADED and not presence_result["accepted"]:
         empty = DetectionFeatures(
             billboard_count=0,
             estimated_area_sqft=0.0,
@@ -123,27 +123,10 @@ async def upload(
             detections=empty,
             compliance=ComplianceReport(overall_passed=True, checks=[]),
             status="no_billboard",
-            message="No billboard detected in this image. Please take a photo of an actual billboard for analysis.",
+            message=presence_result["message"],
         )
 
-    if MODEL_LOADED and 0.3 <= presence_prob < 0.5:
-        empty = DetectionFeatures(
-            billboard_count=0,
-            estimated_area_sqft=0.0,
-            bounding_boxes=[],
-            qr_or_license_present=False,
-            text_content=[],
-        )
-        return AnalysisResponse(
-            file_id=file_id,
-            filename=saved.stored_filename,
-            media_type=media_type,
-            storage_url=None,
-            detections=empty,
-            compliance=ComplianceReport(overall_passed=False, checks=[]),
-            status="uncertain",
-            message="Uncertain — please confirm if a billboard is present and take a clearer photo.",
-        )
+    # Billboard accepted by ONNX model - proceed to detailed analysis
 
     # Step 2: presence >= 0.5 → run detailed detection
     try:
@@ -169,6 +152,7 @@ async def upload(
     # Combine presence and box confidence for MVP robustness
     confs = [b.confidence for b in detections.bounding_boxes if b.confidence is not None]
     avg_conf = (sum(confs) / len(confs)) if confs else 0.0
+    presence_prob = presence_result.get("billboard", 0.0) if isinstance(presence_result, dict) else 1.0
     final_conf = max(avg_conf, presence_prob)
     conf_threshold = settings.detection_conf_threshold
     if final_conf < conf_threshold:
