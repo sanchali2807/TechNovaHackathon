@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Billboard Watch India
 
 AI-powered billboard detection and compliance monitoring system for outdoor advertising in India.
@@ -27,8 +28,8 @@ npm install
 
 # Start the development server
 npm run dev
-```
 
+<<<<<<< HEAD
 ### Backend Setup
 ```sh
 # Navigate to backend directory
@@ -66,16 +67,13 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 3. **Access Application**:
    - Frontend: http://localhost:5173
-   - Backend API: http://localhost:8000
-
-## Technologies Used
-
-### Frontend
+   - Backend API: http://localhost:8080
 - **Vite** - Build tool
 - **TypeScript** - Type safety
 - **React** - UI framework
 - **Tailwind CSS** - Styling
 - **shadcn-ui** - Component library
+<<<<<<< HEAD
 
 ### Backend
 - **FastAPI** - Python web framework
@@ -95,3 +93,6 @@ The system uses YOLOv8 for billboard detection with the following criteria:
 - Accepts: Non-person/animal objects with ≥40% confidence and ≥0.3% area coverage
 - Rejects: People, animals, and low-confidence detections
 - Supports: Real billboard structures, signs, and advertising displays
+======
+
+
