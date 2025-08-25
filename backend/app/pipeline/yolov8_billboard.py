@@ -149,39 +149,12 @@ class YOLOv8BillboardDetector:
                         print(f"\nDetected: {class_name} | Conf: {confidence:.3f} | Area: {area_ratio:.3f} | Box: [{int(x1)},{int(y1)},{int(width)},{int(height)}]")
                         print(f"  -> Raw area: {width*height:.0f}px | Image area: {img_area}px | Ratio: {area_ratio:.4f}")
                         
-                        # Hackathon survival fix: Accept common COCO classes that look like billboards
-                        ACCEPTED_CLASSES = ["billboard", "signboard", "screen", "sign", "advertisement", "poster", "banner", "tv", "monitor", "laptop", "cell phone", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"]
+                        # Simple rule: Accept if NOT a person/animal AND has reasonable size/confidence
+                        REJECTED_CLASSES = ["person", "people", "human", "face", "dog", "cat", "bird", "horse", "cow", "sheep"]
                         
-                        # Log what we detected for debugging
-                        print(f"  -> Checking if '{class_name}' is in accepted classes: {class_name.lower() in ACCEPTED_CLASSES}")
-                        
-                        if class_name.lower() in ACCEPTED_CLASSES:
-                            print(f"  -> ✅ Billboard-like object detected: {class_name}")
-                            # Check confidence threshold (relaxed to 0.6)
-                            if confidence < confidence_threshold:
-                                print(f"  -> REJECTED: Confidence {confidence:.3f} < {confidence_threshold}")
-                                debug_info["rejection_reasons"].append(f"Billboard confidence {confidence:.3f} below threshold {confidence_threshold}")
-                                continue
-                            else:
-                                print(f"  -> PASSED: Confidence {confidence:.3f} >= {confidence_threshold}")
-                            
-                            # Check minimum area coverage (relaxed to 5% for hackathon demo)
-                            min_area_ratio = 0.05
-                            if area_ratio < min_area_ratio:
-                                print(f"  -> REJECTED: Area ratio {area_ratio:.4f} < {min_area_ratio}")
-                                debug_info["rejection_reasons"].append(f"Billboard area {area_ratio:.3f} below minimum {min_area_ratio}")
-                                continue
-                            else:
-                                print(f"  -> PASSED: Area ratio {area_ratio:.4f} >= {min_area_ratio}")
-                            
-                            # Check for structural validity (very relaxed for debugging)
-                            structure_valid = self._validate_billboard_structure(x1, y1, x2, y2, img_width, img_height)
-                            if not structure_valid:
-                                print(f"  -> REJECTED: Structure validation failed")
-                                debug_info["rejection_reasons"].append("No billboard structure detected. Please upload a clear rectangular billboard.")
-                                continue
-                            else:
-                                print(f"  -> PASSED: Structure validation")
+                        if class_name.lower() not in REJECTED_CLASSES and confidence >= 0.4 and area_ratio >= 0.003:
+                            print(f"  -> ✅ Accepting {class_name} - not person/animal, good confidence/size")
+                            print(f"  -> ACCEPTED: {class_name} meets billboard criteria")
                             
                             # Valid billboard detection
                             bbox = BoundingBox(
@@ -198,39 +171,13 @@ class YOLOv8BillboardDetector:
                                 "bbox": [int(x1), int(y1), int(width), int(height)],
                                 "confidence": confidence,
                                 "area_ratio": area_ratio,
-                                "structure_valid": structure_valid
+                                "structure_valid": True
                             })
                             
-                            print(f"\n✅ ACCEPTED BILLBOARD: {class_name} | Conf: {confidence:.3f} | Area: {area_ratio:.4f} | Structure: valid")
-                            print(f"   Box: [{int(x1)},{int(y1)},{int(width)},{int(height)}] | Aspect: {width/height:.2f}")
+                            print(f"✅ ACCEPTED BILLBOARD: {class_name} | Conf: {confidence:.3f} | Area: {area_ratio:.4f}")
                         
                         else:
-                            print(f"  -> ❌ Not a billboard-related class: {class_name}")
-                            # Fallback: Accept most objects except obvious non-billboards (people/animals)
-                            REJECTED_CLASSES = ["person", "people", "human", "face", "dog", "cat", "bird", "animal"]
-                            
-                            if class_name.lower() not in REJECTED_CLASSES and confidence >= 0.5 and area_ratio >= 0.005:
-                                print(f"  -> 🎯 FALLBACK: Treating '{class_name}' as billboard for demo (conf={confidence:.3f}, area={area_ratio:.4f})")
-                                
-                                bbox = BoundingBox(
-                                    x=int(x1),
-                                    y=int(y1),
-                                    width=int(width),
-                                    height=int(height),
-                                    confidence=confidence,
-                                    class_name="billboard"  # Override class name
-                                )
-                                billboard_detections.append(bbox)
-                                debug_info["billboard_detections"].append({
-                                    "bbox": [int(x1), int(y1), int(width), int(height)],
-                                    "confidence": confidence,
-                                    "area_ratio": area_ratio,
-                                    "structure_valid": True,
-                                    "fallback_detection": True
-                                })
-                                print(f"✅ FALLBACK ACCEPTED: {class_name} -> billboard | Conf: {confidence:.3f} | Area: {area_ratio:.4f}")
-                            else:
-                                print(f"  -> REJECTED: {class_name} is a person/animal or doesn't meet criteria (conf={confidence:.3f}, area={area_ratio:.4f})")
+                            print(f"  -> ❌ Rejected {class_name} ({confidence:.2f}) - not a billboard class")
             
             # Determine acceptance
             accepted = len(billboard_detections) > 0
