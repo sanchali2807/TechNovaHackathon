@@ -1,73 +1,97 @@
-# Welcome to your Lovable project
+# Billboard Watch India
 
-## Project info
+AI-powered billboard detection and compliance monitoring system for outdoor advertising in India.
 
-**URL**: https://lovable.dev/projects/2332e458-190a-426f-9dbb-db5a497bca32
+## Features
 
-## How can I edit this code?
+- **Billboard Detection**: YOLOv8-based detection to identify billboards vs non-billboard content
+- **Compliance Monitoring**: Automated checks for advertising regulations
+- **Real-time Analysis**: Upload images for instant billboard validation
+- **Modern UI**: React-based interface with camera integration
 
-There are several ways of editing your application.
+## Setup & Installation
 
-**Use Lovable**
+### Prerequisites
+- Node.js & npm (for frontend)
+- Python 3.8+ (for backend)
+- Git
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/2332e458-190a-426f-9dbb-db5a497bca32) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
+### Frontend Setup
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+# Clone the repository
+git clone https://github.com/sanchali2807/TechNovaHackathon.git
+cd TechNovaHackathon
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Install frontend dependencies
+npm install
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start the development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### Backend Setup
+```sh
+# Navigate to backend directory
+cd backend
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+# Create virtual environment
+python -m venv .venv
 
-**Use GitHub Codespaces**
+# Activate virtual environment
+# On macOS/Linux:
+source .venv/bin/activate
+# On Windows:
+.venv\Scripts\activate
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+# Install Python dependencies
+pip install -r requirements.txt
 
-## What technologies are used for this project?
+# Start the backend server
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
 
-This project is built with:
+## Running the Project
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+1. **Start Backend Server**:
+   ```sh
+   cd backend
+   source .venv/bin/activate  # Activate virtual environment
+   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+   ```
 
-## How can I deploy this project?
+2. **Start Frontend Server** (in new terminal):
+   ```sh
+   npm run dev
+   ```
 
-Simply open [Lovable](https://lovable.dev/projects/2332e458-190a-426f-9dbb-db5a497bca32) and click on Share -> Publish.
+3. **Access Application**:
+   - Frontend: http://localhost:5173
+   - Backend API: http://localhost:8000
 
-## Can I connect a custom domain to my Lovable project?
+## Technologies Used
 
-Yes, you can!
+### Frontend
+- **Vite** - Build tool
+- **TypeScript** - Type safety
+- **React** - UI framework
+- **Tailwind CSS** - Styling
+- **shadcn-ui** - Component library
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Backend
+- **FastAPI** - Python web framework
+- **YOLOv8** - Object detection model
+- **OpenCV** - Image processing
+- **Ultralytics** - YOLO implementation
+- **Uvicorn** - ASGI server
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## API Endpoints
+
+- `POST /upload` - Upload billboard image for detection
+- `GET /health` - Health check endpoint
+
+## Model Configuration
+
+The system uses YOLOv8 for billboard detection with the following criteria:
+- Accepts: Non-person/animal objects with ≥40% confidence and ≥0.3% area coverage
+- Rejects: People, animals, and low-confidence detections
+- Supports: Real billboard structures, signs, and advertising displays
