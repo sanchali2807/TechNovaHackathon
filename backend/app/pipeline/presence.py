@@ -20,16 +20,39 @@ def _load_session() -> Optional[ort.InferenceSession]:
     if _SESSION is not None:
         return _SESSION
     if ort is None:
+        print("ERROR: onnxruntime not available - cannot load ONNX model")
         return None
-    model_path = Path("backend/models/presence_mobilenet.onnx")
-    if model_path.exists():
-        providers = ["CPUExecutionProvider"]
-        try:
-            _SESSION = ort.InferenceSession(str(model_path), providers=providers)
-            globals()["MODEL_LOADED"] = True
-        except Exception:
-            _SESSION = None
-            globals()["MODEL_LOADED"] = False
+    
+    # Try both possible model locations
+    model_paths = [
+        Path("models/presence_mobilenet.onnx"),  # Relative to backend/
+        Path("backend/models/presence_mobilenet.onnx"),  # From project root
+        Path("app/models/presence_mobilenet.onnx")  # From backend/
+    ]
+    model_path = None
+    for path in model_paths:
+        print(f"Checking model path: {path.absolute()}")
+        if path.exists():
+            model_path = path
+            print(f"Found ONNX model at: {model_path.absolute()}")
+            break
+    
+    if model_path is None:
+        print("ERROR: presence_mobilenet.onnx not found in any expected location")
+        globals()["MODEL_LOADED"] = False
+        return None
+        
+    providers = ["CPUExecutionProvider"]
+    try:
+        _SESSION = ort.InferenceSession(str(model_path), providers=providers)
+        globals()["MODEL_LOADED"] = True
+        print(f"SUCCESS: ONNX model loaded from {model_path}")
+        print(f"Model inputs: {[inp.name for inp in _SESSION.get_inputs()]}")
+        print(f"Model outputs: {[out.name for out in _SESSION.get_outputs()]}")
+    except Exception as e:
+        print(f"ERROR: Failed to load ONNX model from {model_path}: {e}")
+        _SESSION = None
+        globals()["MODEL_LOADED"] = False
     return _SESSION
 
 
@@ -48,7 +71,7 @@ def predict_presence(path: str, custom_model_path: str = None) -> dict:
     Returns dict with:
     - billboard: probability of billboard class
     - no_billboard: probability of no billboard class
-    - accepted: boolean if image should be accepted (billboard >= 0.8)
+    - accepted: boolean if image should be accepted (billboard >= 0.6)
     """
     p = Path(path)
     img = cv2.imread(str(p))
@@ -64,46 +87,77 @@ def predict_presence(path: str, custom_model_path: str = None) -> dict:
     session = None
     if custom_model_path and Path(custom_model_path).exists():
         try:
-            session = onnxruntime.InferenceSession(custom_model_path)
+            session = ort.InferenceSession(custom_model_path)
+            print(f"Using custom model: {custom_model_path}")
         except Exception as e:
             print(f"Failed to load custom model {custom_model_path}: {e}")
     
     if session is None:
         session = _load_session()
+        if session is None:
+            print("ERROR: No ONNX model available for inference")
     
     if session is not None:
+        print(f"Running ONNX inference on image: {path}")
         inp = _preprocess(img)
-        outputs = session.run(None, {session.get_inputs()[0].name: inp})
-        probs = outputs[0].astype(np.float32)
+        print(f"Preprocessed input shape: {inp.shape}, dtype: {inp.dtype}, min: {inp.min():.3f}, max: {inp.max():.3f}")
         
-        if probs.ndim == 2 and probs.shape[1] >= 2:
-            # Two-class output: [no_billboard, billboard]
-            no_billboard_prob = float(probs[0][0])
-            billboard_prob = float(probs[0][1])
-        else:
-            # Single output - assume it's billboard probability
-            billboard_prob = float(probs.flatten()[0])
-            no_billboard_prob = 1.0 - billboard_prob
-        
-        # Apply threshold rule: billboard >= 0.3 to accept (lowered from 0.8)
-        accepted = billboard_prob >= 0.3
-        
-        # Debug output
-        print(f"ONNX Model Results: billboard={billboard_prob:.3f}, no_billboard={no_billboard_prob:.3f}, accepted={accepted}")
-        
-        message = "Billboard detected ✅" if accepted else "No billboard detected ❌ Please upload a billboard photo."
-        
-        return {
-            "billboard": max(0.0, min(1.0, billboard_prob)),
-            "no_billboard": max(0.0, min(1.0, no_billboard_prob)),
-            "accepted": accepted,
-            "message": message
-        }
+        try:
+            outputs = session.run(None, {session.get_inputs()[0].name: inp})
+            probs = outputs[0].astype(np.float32)
+            print(f"Raw ONNX output shape: {probs.shape}, values: {probs}")
+            
+            if probs.ndim == 2 and probs.shape[1] >= 2:
+                # Two-class output: [no_billboard, billboard]
+                no_billboard_prob = float(probs[0][0])
+                billboard_prob = float(probs[0][1])
+                print(f"Two-class output detected: no_billboard={no_billboard_prob:.4f}, billboard={billboard_prob:.4f}")
+            else:
+                # Single output - assume it's billboard probability
+                billboard_prob = float(probs.flatten()[0])
+                no_billboard_prob = 1.0 - billboard_prob
+                print(f"Single output detected: billboard={billboard_prob:.4f}, no_billboard={no_billboard_prob:.4f}")
+            
+            # Apply threshold rule: billboard >= 0.6 to accept (60% confidence - relaxed for debugging)
+            accepted = billboard_prob >= 0.6
+            
+            # Enhanced debug output with both class scores
+            print(f"\n=== ONNX PRESENCE DEBUG ===")
+            print(f"Image: {path}")
+            print(f"CLASS SCORES: billboard={billboard_prob:.4f} ({billboard_prob*100:.1f}%), no_billboard={no_billboard_prob:.4f} ({no_billboard_prob*100:.1f}%)")
+            print(f"DECISION: billboard_confidence={billboard_prob:.4f}, threshold=0.6, accepted={accepted}")
+            print(f"=== END ONNX DEBUG ===\n")
+            
+            confidence_pct = int(billboard_prob * 100)
+            if accepted:
+                message = f"Billboard detected with {confidence_pct}% confidence"
+            else:
+                message = "Low confidence. Please upload a clearer billboard photo."
+            
+            return {
+                "billboard": max(0.0, min(1.0, billboard_prob)),
+                "no_billboard": max(0.0, min(1.0, no_billboard_prob)),
+                "accepted": accepted,
+                "message": message,
+                "confidence": confidence_pct
+            }
+        except Exception as e:
+            print(f"ERROR during ONNX inference: {e}")
+            return {
+                "billboard": 0.0,
+                "no_billboard": 1.0,
+                "accepted": False,
+                "message": f"Model inference failed: {str(e)}",
+                "confidence": 0
+            }
 
-    # Heuristic fallback - return rejection for no ONNX model
+    # Model not available - return error instead of silent rejection
+    print("ERROR: ONNX model not loaded - cannot perform billboard detection")
     return {
         "billboard": 0.0,
         "no_billboard": 1.0,
         "accepted": False,
-        "message": "No billboard detected Please upload a billboard photo."
+        "message": "Billboard detection model not available. Please check server configuration.",
+        "confidence": 0,
+        "error": "model_not_loaded"
     }

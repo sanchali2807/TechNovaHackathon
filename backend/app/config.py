@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     storage_root: Path = Path("backend/uploads").absolute()
     public_base_url: str | None = None  # Optional public URL base if behind CDN/proxy
 
-    # AI model provider: mock | ultralytics | detectron2 (mock by default)
-    model_provider: str = "mock"
+    # AI model provider: mock | ultralytics | yolov8 | detectron2 (yolov8 by default for strict billboard detection)
+    model_provider: str = "yolov8"
 
     # Municipal limits (example: 40 sq ft)
     municipal_area_limit_sqft: float = 40.0
@@ -24,8 +24,8 @@ class Settings(BaseSettings):
     # MVP detection thresholds
     presence_threshold_low: float = 0.2
     presence_threshold_high: float = 0.3
-    detection_conf_threshold: float = 0.625
-    presence_enabled: bool = False
+    detection_conf_threshold: float = 0.8
+    presence_enabled: bool = True
 
 
 settings = Settings()

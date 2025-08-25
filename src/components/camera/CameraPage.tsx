@@ -76,7 +76,6 @@ export const CameraPage = ({ onNavigate }: CameraPageProps) => {
           const video = videoRef.current;
           video.setAttribute("playsinline", "");
           // Safari/iOS specific attribute
-          // @ts-expect-error: non-standard attribute for iOS
           video.setAttribute("webkit-playsinline", "");
           video.setAttribute("muted", "");
           video.setAttribute("autoplay", "");
@@ -108,8 +107,14 @@ export const CameraPage = ({ onNavigate }: CameraPageProps) => {
     }
   };
 
-  const captureAndUpload = async () => {
-    if (!videoRef.current) return;
+  const captureAndUpload = async (event?: React.MouseEvent) => {
+    // Prevent accidental captures from scroll or other events
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    if (!videoRef.current || isScanning) return;
     setIsScanning(true);
     try {
       const video = videoRef.current;
@@ -144,16 +149,28 @@ export const CameraPage = ({ onNavigate }: CameraPageProps) => {
       }
       const data = await res.json();
       if (data?.status === "no_billboard" || !data?.detections || (data.detections.billboard_count || 0) === 0) {
-        setError(data?.message || "No billboard detected. Reframe to include the full billboard and try again.");
+        const message = data?.message || "No billboard detected. Reframe to include the full billboard and try again.";
+        setError(message);
         return;
       }
       if (data?.status === "uncertain") {
-        setError(data?.message || "Uncertain detection. Please capture a clearer photo.");
+        const message = data?.message || "Uncertain detection. Please capture a clearer photo.";
+        setError(message);
         return;
       }
-      const preview = canvas.toDataURL("image/jpeg", 0.8);
-      setAnalysis(data, preview);
-      onNavigate("violations");
+      // Show success message briefly before navigating
+      if (data?.message && data.message.includes('detected with') && data.message.includes('% confidence')) {
+        setError(data.message);
+        setTimeout(() => {
+          const preview = canvas.toDataURL("image/jpeg", 0.8);
+          setAnalysis(data, preview);
+          onNavigate("violations");
+        }, 1500);
+      } else {
+        const preview = canvas.toDataURL("image/jpeg", 0.8);
+        setAnalysis(data, preview);
+        onNavigate("violations");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Scan failed");
     } finally {
@@ -161,7 +178,13 @@ export const CameraPage = ({ onNavigate }: CameraPageProps) => {
     }
   };
 
-  const openGallery = () => {
+  const openGallery = (event?: React.MouseEvent) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    if (isScanning) return;
     setError(null);
     fileInputRef.current?.click();
   };
@@ -216,24 +239,47 @@ export const CameraPage = ({ onNavigate }: CameraPageProps) => {
       }
       const data = await res.json();
       if (data?.status === "no_billboard" || !data?.detections || (data.detections.billboard_count || 0) === 0) {
-        setError(data?.message || "No billboard detected in the selected image. Please choose another where the billboard is clearly visible.");
+        const message = data?.message || "No billboard detected in the selected image. Please choose another where the billboard is clearly visible.";
+        setError(message);
         return;
       }
       if (data?.status === "uncertain") {
-        setError(data?.message || "Uncertain detection. Please choose a clearer image.");
+        const message = data?.message || "Uncertain detection. Please choose a clearer image.";
+        setError(message);
         return;
       }
-      // Build preview from the already selected file
-      let preview: string | null = null;
-      if (file) {
-        preview = await new Promise<string>((resolve) => {
-          const r = new FileReader();
-          r.onload = () => resolve(String(r.result));
-          r.readAsDataURL(file);
-        });
+      // Show success message briefly before navigating
+      if (data?.message && data.message.includes('detected with') && data.message.includes('% confidence')) {
+        setError(data.message);
+        setTimeout(() => {
+          // Build preview from the already selected file
+          let preview: string | null = null;
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = () => {
+              preview = String(reader.result);
+              setAnalysis(data, preview);
+              onNavigate("violations");
+            };
+            reader.readAsDataURL(file);
+          } else {
+            setAnalysis(data, preview);
+            onNavigate("violations");
+          }
+        }, 1500);
+      } else {
+        // Build preview from the already selected file
+        let preview: string | null = null;
+        if (file) {
+          preview = await new Promise<string>((resolve) => {
+            const r = new FileReader();
+            r.onload = () => resolve(String(r.result));
+            r.readAsDataURL(file);
+          });
+        }
+        setAnalysis(data, preview);
+        onNavigate("violations");
       }
-      setAnalysis(data, preview);
-      onNavigate("violations");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -329,7 +375,7 @@ export const CameraPage = ({ onNavigate }: CameraPageProps) => {
               </Button>
             ) : (
               <Button
-                onClick={captureAndUpload}
+                onClick={(e) => captureAndUpload(e)}
                 disabled={isScanning}
                 className="w-full bg-primary hover:bg-primary/90 text-lg py-6 rounded-xl transition-spring"
               >
@@ -348,7 +394,7 @@ export const CameraPage = ({ onNavigate }: CameraPageProps) => {
             )}
             <Button
               variant="secondary"
-              onClick={openGallery}
+              onClick={(e) => openGallery(e)}
               disabled={isScanning}
               className="w-full text-lg py-6 rounded-xl transition-spring"
             >
@@ -367,8 +413,19 @@ export const CameraPage = ({ onNavigate }: CameraPageProps) => {
             </ul>
           </Card>
           {error && (
-            <Card className="p-3 text-sm text-red-500 bg-red-50 border border-red-200">
-              {error}
+            <Card className={`p-3 text-sm border ${
+              error.includes('detected with') && error.includes('% confidence') 
+                ? 'text-green-700 bg-green-50 border-green-200' 
+                : 'text-red-600 bg-red-50 border-red-200'
+            }`}>
+              <div className="flex items-center space-x-2">
+                {error.includes('detected with') && error.includes('% confidence') ? (
+                  <span className="text-green-600">✅</span>
+                ) : (
+                  <span className="text-red-600">❌</span>
+                )}
+                <span>{error}</span>
+              </div>
             </Card>
           )}
           <input
