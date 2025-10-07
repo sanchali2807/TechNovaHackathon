@@ -19,8 +19,8 @@ services:
       # - key: FRONTEND_URL
       #   value: https://your-frontend.onrender.com
 
-staticSites:
-  - name: billboardguard-frontend
+  - type: static_site
+    name: billboardguard-frontend
     rootDir: .
     buildCommand: |
       npm ci
