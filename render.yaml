@@ -19,13 +19,13 @@ services:
       # - key: FRONTEND_URL
       #   value: https://your-frontend.onrender.com
 
-  - type: static
-    name: billboardguard-frontend
+staticSites:
+  - name: billboardguard-frontend
     rootDir: .
     buildCommand: |
       npm ci
       npm run build
-    staticPublishPath: dist
+    publishPath: dist
     routes:
       # Proxy API requests to the backend service
       - type: rewrite
