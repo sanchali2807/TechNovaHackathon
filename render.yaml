@@ -19,11 +19,9 @@ services:
       # - key: FRONTEND_URL
       #   value: https://your-frontend.onrender.com
 
-  - type: web
+  - type: static
     name: billboardguard-frontend
-    env: static
     rootDir: .
-    plan: free
     buildCommand: |
       npm ci
       npm run build
