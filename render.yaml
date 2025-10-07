@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: billboardguard-backend
+    env: python
+    rootDir: backend
+    plan: free
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: BILLBOARD_GUARD_STORAGE_ROOT
+        value: uploads
+      - key: BILLBOARD_GUARD_POLICIES_PATH
+        value: policies.json
+      # Set this after the frontend deploys to enable strict CORS to that origin
+      # - key: FRONTEND_URL
+      #   value: https://your-frontend.onrender.com
+
+  - type: web
+    name: billboardguard-frontend
+    env: static
+    rootDir: .
+    plan: free
+    buildCommand: |
+      npm ci
+      npm run build
+    staticPublishPath: dist
+    routes:
+      # Proxy API requests to the backend service
+      - type: rewrite
+        source: /api/*
+        destination: https://billboardguard-backend.onrender.com/$1
+      # SPA fallback
+      - type: rewrite
+        source: /*
+        destination: /index.html
