@@ -117,7 +117,6 @@ export const CameraPage = ({ onNavigate }: CameraPageProps) => {
     if (!videoRef.current || isScanning) return;
     setIsScanning(true);
     try {
-      const video = videoRef.current;
       const canvas = document.createElement("canvas");
       const scale = Math.min(1280 / (video.videoWidth || 1280), 720 / (video.videoHeight || 720));
       const w = Math.max(1, Math.floor((video.videoWidth || 640) * (scale || 1)));
@@ -129,8 +128,7 @@ export const CameraPage = ({ onNavigate }: CameraPageProps) => {
       ctx.drawImage(video, 0, 0, w, h);
       const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve as BlobCallback, "image/jpeg", 0.92));
       if (!blob) throw new Error("Failed to capture image");
-
-      const apiBase = "/api";
+      const apiBase = import.meta.env.VITE_API_BASE || "/api";
       const form = new FormData();
       form.append("file", new File([blob], "capture.jpg", { type: "image/jpeg" }));
       const metadata = {
@@ -138,7 +136,7 @@ export const CameraPage = ({ onNavigate }: CameraPageProps) => {
         location: coords.lat && coords.lng ? { latitude: coords.lat, longitude: coords.lng, city: undefined } : undefined,
       };
       form.append("metadata", JSON.stringify(metadata));
-
+      
       const res = await fetch(`${apiBase}/upload`, {
         method: "POST",
         body: form,
@@ -158,6 +156,7 @@ export const CameraPage = ({ onNavigate }: CameraPageProps) => {
         setError(message);
         return;
       }
+{{ ... }}
       // Show success message briefly before navigating
       if (data?.message && data.message.includes('detected with') && data.message.includes('% confidence')) {
         setError(data.message);
@@ -183,7 +182,6 @@ export const CameraPage = ({ onNavigate }: CameraPageProps) => {
       event.preventDefault();
       event.stopPropagation();
     }
-    
     if (isScanning) return;
     setError(null);
     fileInputRef.current?.click();
@@ -194,13 +192,14 @@ export const CameraPage = ({ onNavigate }: CameraPageProps) => {
       const file = e.target.files && e.target.files[0];
       if (!file) return;
       setIsScanning(true);
-      const apiBase = "/api";
+      const apiBase = import.meta.env.VITE_API_BASE || "/api";
       const form = new FormData();
 
       // Convert non-JPEG images (e.g., HEIC/PNG) to JPEG for broader backend compatibility
       let uploadBlob: Blob = file;
       if (!/^image\/jpeg$/i.test(file.type)) {
         const objectUrl = URL.createObjectURL(file);
+{{ ... }}
         try {
           const img = await new Promise<HTMLImageElement>((resolve, reject) => {
             const image = new Image();
